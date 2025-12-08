@@ -1,0 +1,47 @@
+{
+  "oauthScopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/script.send_mail",
+      "https://mail.google.com/",
+      "https://www.googleapis.com/auth/script.external_request",
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/script.projects"
+  ],
+  "urlFetchWhitelist": [
+    "https://script.googleapis.com/",
+    "https://docs.google.com/spreadsheets/",
+    "https://dfu.xb-online.com/wagerupload/betupload.aspx",
+    "https://www.heatseakerbet.com/api/submit-bets",
+    "https://www.heatseakerbet.com/api/races/daily",
+    "https://slack.com/api/files.getUploadURLExternal",
+    "https://files.slack.com/upload/v1",
+    "https://slack.com/api/files.completeUploadExternal",
+    "https://hooks.slack.com/",
+    "https://slack.com/api/chat.postMessage"
+  ],
+  "addOns": {
+    "common": {
+      "name": "Share Macro",
+      "logoUrl": "https://www.gstatic.com/images/branding/product/2x/apps_script_48dp.png",
+      "layoutProperties": {
+        "primaryColor": "#188038",
+        "secondaryColor": "#34a853"
+      },
+      "homepageTrigger": {
+        "runFunction": "onHomepage"
+      }
+    }},
+  "timeZone": "America/Denver",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Gmail",
+        "version": "v1",
+        "serviceId": "gmail"
+      }
+    ]
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8"
+}
