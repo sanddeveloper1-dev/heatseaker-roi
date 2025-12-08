@@ -28,7 +28,7 @@ Files are loaded in this order (alphabetical):
 - **02-Utilities.js**: Shared functions for data cleaning, validation, formatting (numeric, currency, percent)
 
 ### Core Functionality
-- **03-Generator.js**: Spreadsheet generation, template distribution, Apps Script updates
+- **03-Generator.js**: Apps Script code distribution from template to all track spreadsheets
 - **04-DataIngestion.js**: Daily race data ingestion from Google Sheets to backend API
 - **05-DBRetrieval.js**: Database retrieval and synchronization with tracking sheets (DATABASE, TEE, TOTALS)
 
