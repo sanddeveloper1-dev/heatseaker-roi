@@ -28,9 +28,9 @@ const Config = {
 	TAB_RATIO_TEMPLATE: 'RATIO TEMPLATE', // Manual Bet (Ratio).js
 	TAB_TEMPLATE: 'TEMPLATE', // Generator.js
 	TAB_UTILITY: 'UTILITY', // Generator.js, SlackBet - V2.js
-	TAB_TOTALS: 'TOTALS', // 9 - DB Retrieval.js
-	TAB_TEE: 'TEE', // 9 - DB Retrieval.js
-	TAB_DATABASE: 'DATABASE', // 9 - DB Retrieval.js
+	TAB_TOTALS: 'TOTALS', // 05-DBRetrieval.js
+	TAB_TEE: 'TEE', // 05-DBRetrieval.js
+	TAB_DATABASE: 'DATABASE', // 05-DBRetrieval.js
 	// Add more as needed for other tabs
 
 	// --- DB Tracking / Daily Retrieval ---
