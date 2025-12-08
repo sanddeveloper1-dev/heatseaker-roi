@@ -60,20 +60,6 @@
  */
 
 /**
- * Configuration for data ingestion
- */
-const DataIngestionConfig = {
-	API_URL: Config.DATA_INGESTION_API_URL,
-	SOURCE_IDENTIFIER: Config.DATA_INGESTION_SOURCE,
-	INVALID_VALUES: ['SC', 'N/A', '#VALUE!', '#DIV/0!', 'FALSE', ''],
-	RACE_NUMBER_MIN: Config.RACE_NUMBER_MIN,
-	RACE_NUMBER_MAX: Config.RACE_NUMBER_MAX,
-	HORSE_NUMBER_MIN: Config.HORSE_NUMBER_MIN,
-	HORSE_NUMBER_MAX: Config.HORSE_NUMBER_MAX,
-	MIN_ENTRIES: Config.MIN_ENTRIES_PER_RACE
-};
-
-/**
  * Get track code from track name using the tracks array
  * @param {string} trackName - Track name (e.g., "GULFSTREAM")
  * @returns {string|null} Track code (e.g., "GP") or null if not found
