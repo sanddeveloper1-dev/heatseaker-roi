@@ -83,6 +83,11 @@ const Config = {
 	MIN_ENTRIES_PER_RACE: 1,
 	// Add more as needed
 
+	// --- Template/Master Spreadsheet Configuration ---
+	TEMPLATE_SPREADSHEET_ID: '1sQZylzdKOs9lrhU9-Ru5pGygKl9XT4slYLepreV7BEY', // Template-ROI spreadsheet ID
+	TEMPLATE_SPREADSHEET_NAME: 'Template-ROI', // Template spreadsheet name
+	TEMPLATE_SCRIPT_ID: '1948DumhjvI_dGKi0-zQUuTe01astuS8kqJOa7EdWY1koqKJ6sUMIhlYv', // Template Apps Script project ID
+
 	// --- Track Metadata (Tracks.js) ---
 	// Track metadata is stored in the tracks array in Tracks.js
 	// If you need to reference a specific property, add here as needed
