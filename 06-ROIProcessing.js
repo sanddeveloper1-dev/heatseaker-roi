@@ -9,7 +9,7 @@
  * This software is provided "AS IS" without warranty.
  * For complete terms, see SERVICE_AGREEMENT.md
  * 
- * ROI Historical Processing Script
+ * Daily ROI Processing Script
  * 
  * Processes DATABASE sheet entries and creates dated copies of TEE sheet
  * with race data populated from DATABASE entries.
@@ -19,6 +19,7 @@
  * - Resume capability using Column G (Extracted flag) in DATABASE
  * - Winner tracking and population in TEE sheets
  * - Progress tracking via Column G flag
+ * - Creates dated TEE sheets (MM/dd/yy format) for daily ROI tracking
  */
 
 const RoiHistoricalConfig = {

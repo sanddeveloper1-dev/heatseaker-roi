@@ -249,7 +249,7 @@ function extractRaceEntries(sheet, dataRow) {
 			const displayRow = entryDisplayValues[i];
 
 			// Use robust validation from utility functions (validates will_pay_2 and will_pay_1_p3)
-			// This matches the validation logic in 08-HistoricalIngestion.js
+			// This matches the validation logic in 02-Utilities.js
 			const columnMap = {
 				will_pay_2: cols.will_pay_2,
 				will_pay_1_p3: cols.will_pay_1_p3
@@ -348,7 +348,7 @@ function extractRaceEntries(sheet, dataRow) {
 /**
  * Check if a row has valid entry data
  * Uses robust validation from utility functions (validates will_pay_2 and will_pay_1_p3)
- * This matches the validation logic in 08-HistoricalIngestion.js
+ * This matches the validation logic in 02-Utilities.js
  * 
  * Note: This function delegates to the utility function with proper column mapping.
  * The utility function hasValidEntryData() validates will_pay_2 and will_pay_1_p3 fields.
@@ -451,7 +451,7 @@ function sendDataToBackend(requestData) {
 		}
 
 		// Sanitize the payload to ensure no unsafe numbers are sent
-		// This matches the sanitization logic in 08-HistoricalIngestion.js
+		// This matches the sanitization logic in 02-Utilities.js
 		const sanitizedData = {
 			source: requestData.source,
 			races: sanitizeRaces(requestData.races),

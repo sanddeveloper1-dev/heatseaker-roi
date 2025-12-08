@@ -97,7 +97,7 @@ function exportRangeAsPDF(sheet, rangeNotation) {
 
 // ============================================================================
 // Data Cleaning and Validation Functions
-// Used by both daily ingestion (04-DataIngestion.js) and historical ingestion (08-HistoricalIngestion.js)
+// Used by daily ingestion (04-DataIngestion.js) and ROI processing (06-ROIProcessing.js)
 // ============================================================================
 
 /**
@@ -481,7 +481,7 @@ function isValidWillPayValue(willPayValue) {
 
 /**
  * Check if a row has valid entry data according to business rules
- * Uses the same validation as 08-HistoricalIngestion.js: validates will_pay_2 and will_pay_1_p3
+ * Uses the same validation as 04-DataIngestion.js: validates will_pay_2 and will_pay_1_p3
  * @param {Array} valueRow - The raw value row
  * @param {Array} displayRow - The formatted value row
  * @param {Object} columnMap - Optional column mapping object (for compatibility)
@@ -489,7 +489,7 @@ function isValidWillPayValue(willPayValue) {
  */
 function hasValidEntryData(valueRow, displayRow, columnMap = null) {
     try {
-        // Default column indices if columnMap not provided (matches 08-HistoricalIngestion.js structure)
+        // Default column indices if columnMap not provided (matches 04-DataIngestion.js structure)
         // Column 11 = will_pay_2, Column 13 = will_pay_1_p3
         const willPay2Col = columnMap?.will_pay_2 ?? 11;
         const willPay1P3Col = columnMap?.will_pay_1_p3 ?? 13;

@@ -9,12 +9,16 @@
  * This software is provided "AS IS" without warranty.
  * For complete terms, see SERVICE_AGREEMENT.md
  *
- * Daily database + tracking sheet synchronisation utilities.
- * Tasks covered:
- *  - Task 2: Populate DATABASE tab with previous day's entries.
- *  - Task 3: Move DATABASE data into TEE sheet layout (races 3-15).
- *  - Task 4: Append TEE totals into TOTALS tab.
- *  - Orchestrator to run the three tasks sequentially.
+ * Daily Database Synchronization
+ * 
+ * Retrieves race data from backend database and synchronizes with Google Sheets.
+ * 
+ * Tasks:
+ *  1. Populate DATABASE tab with previous day's entries from backend API
+ *  2. Move DATABASE data into TEE sheet layout (races 3-15)
+ *  3. Append TEE totals into TOTALS tab
+ * 
+ * Main entry point: runDailyTrackingSync()
  */
 
 const DbRetrievalConfig = Object.freeze(
