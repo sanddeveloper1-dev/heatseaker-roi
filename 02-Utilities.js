@@ -35,6 +35,15 @@ function GetSheetName() {
     return SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getName();
 }
 
+/**
+ * Gets the URL of the active spreadsheet.
+ * Used for tracking which spreadsheet is making API calls.
+ * @returns {string} The spreadsheet URL
+ */
+function getSpreadsheetUrl() {
+    return SpreadsheetApp.getActiveSpreadsheet().getUrl();
+}
+
 function eventBetDate() {
     const date = new Date()
 

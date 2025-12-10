@@ -257,10 +257,13 @@ function fetchEntriesForTrack_(date, trackCode) {
   const baseUrl = ingestionUrl.replace(/\/api\/races\/daily\/?$/, '');
   const url = `${baseUrl}/api/races/entries/daily?date=${encodeURIComponent(date)}&trackCode=${encodeURIComponent(trackCode)}`;
 
+  const spreadsheetUrl = getSpreadsheetUrl();
+
   const response = UrlFetchApp.fetch(url, {
     method: 'get',
     headers: {
       'X-API-Key': apiKey,
+      'X-Source-Spreadsheet-URL': spreadsheetUrl,
     },
     muteHttpExceptions: true,
   });
