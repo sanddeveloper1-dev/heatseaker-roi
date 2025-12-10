@@ -12,10 +12,9 @@ Files are loaded in this order (alphabetical):
 2. **01-Tracks.js** - Track metadata array (depends on Config)
 3. **02-Utilities.js** - Shared utility functions
 4. **03-Generator.js** - Apps Script code distribution
-5. **04-DataIngestion.js** - Daily data ingestion to backend API
-6. **05-DatabaseSync.js** - Daily database retrieval and tracking sheet sync
-7. **06-ROIProcessing.js** - Daily ROI processing (creates dated TEE sheets)
-8. **07-ROITotals.js** - ROI totals extraction (appends to TOTALS sheet)
+5. **04-DatabaseSync.js** - Daily database retrieval and tracking sheet sync
+6. **05-ROIProcessing.js** - Daily ROI processing (creates dated TEE sheets)
+7. **06-ROITotals.js** - ROI totals extraction (appends to TOTALS sheet)
 
 ## File Descriptions
 
@@ -28,20 +27,19 @@ Files are loaded in this order (alphabetical):
 
 ### Core Functionality
 - **03-Generator.js**: Apps Script code distribution from template to all track spreadsheets
-- **04-DataIngestion.js**: Daily race data ingestion from Google Sheets to backend API
 
 ### Daily Database & ROI Processing
-- **05-DatabaseSync.js**: Daily database retrieval and synchronization
+- **04-DatabaseSync.js**: Daily database retrieval and synchronization
   - Calls backend database API
   - Populates DATABASE sheet with previous day's entries
   - Moves DATABASE data into TEE sheet layout
   - Appends TEE totals to TOTALS tab
-- **06-ROIProcessing.js**: Daily ROI processing
+- **05-ROIProcessing.js**: Daily ROI processing
   - Processes DATABASE sheet entries
   - Creates dated copies of TEE sheet (MM/dd/yy format)
   - Populates race data from DATABASE entries
   - Tracks progress using Column G (Extracted flag)
-- **07-ROITotals.js**: ROI totals extraction
+- **06-ROITotals.js**: ROI totals extraction
   - Extracts totals from all date-named TEE sheets
   - Appends BET, COLLECT, BETS, WINS to TOTALS sheet
   - Skips duplicates (dates already in TOTALS)
@@ -75,33 +73,31 @@ This ensures:
   └──> 01-Tracks.js (uses Config)
   └──> 02-Utilities.js (uses Config)
   └──> 03-Generator.js (uses Config, tracks)
-  └──> 04-DataIngestion.js (uses Config, tracks, utilities)
-  └──> 05-DatabaseSync.js (uses Config)
-  └──> 06-ROIProcessing.js (uses Config)
-  └──> 07-ROITotals.js (uses Config)
+  └──> 04-DatabaseSync.js (uses Config)
+  └──> 05-ROIProcessing.js (uses Config)
+  └──> 06-ROITotals.js (uses Config)
 ```
 
 ## Daily Workflow
 
 The typical daily workflow uses these files in sequence:
 
-1. **05-DatabaseSync.js** - `runDailyTrackingSync()`
+1. **04-DatabaseSync.js** - `runDailyTrackingSync()`
    - Retrieves data from backend database
    - Populates DATABASE sheet
    - Syncs to TEE sheet
    - Appends to TOTALS sheet
 
-2. **06-ROIProcessing.js** - `processRoiHistorical()`
+2. **05-ROIProcessing.js** - `processRoiHistorical()`
    - Processes DATABASE entries
    - Creates dated TEE sheet copies
    - Populates race data
 
-3. **07-ROITotals.js** - `extractRoiTotals()`
+3. **06-ROITotals.js** - `extractRoiTotals()`
    - Extracts totals from date-named TEE sheets
    - Appends to TOTALS sheet
 
-4. **04-DataIngestion.js** - `ingestDailyRaceData()`
-   - Ingests today's race data to backend API
+Note: Daily data ingestion to the backend API occurs in a separate repository.
 
 ## Adding New Files
 
