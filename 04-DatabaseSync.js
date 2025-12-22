@@ -154,8 +154,17 @@ function syncDatabaseSheet() {
  */
 function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
   const apiEntries = fetchEntriesForTrack_(dateInfo.isoDate, trackCode);
-  if (!apiEntries.length) {
-    console.log(`No entries returned for ${trackCode} on ${dateInfo.isoDate}.`);
+  const apiWinners = fetchWinnersForTrack_(dateInfo.isoDate, trackCode);
+
+  // Initialize return values
+  let entriesFetched = 0;
+  let entriesAppended = 0;
+  let skipped = 0;
+  let racesMetadataAppended = 0;
+  let winnersAppended = 0;
+
+  if (!apiEntries.length && !apiWinners.length) {
+    console.log(`No entries or winners returned for ${trackCode} on ${dateInfo.isoDate}.`);
     return {
       trackCode,
       date: dateInfo.isoDate,
@@ -163,71 +172,78 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
       appended: 0,
       skipped: 0,
       racesMetadataAppended: 0,
+      winnersAppended: 0,
       message: 'No data returned from API.',
     };
   }
 
   const existingKeys = buildDatabaseKeySet_(databaseSheet);
   const existingRaceKeys = buildRaceMetadataKeySet_(databaseSheet);
+  const existingWinnerKeys = buildWinnerKeySet_(databaseSheet);
   const rowsToAppend = [];
   const raceMetadataToAppend = [];
-  let skipped = 0;
+  const winnersToAppend = [];
   const dateToken = dateInfo.isoDate.replace(/-/g, '');
 
   // Track unique races and their metadata
   const raceMetadataMap = {};
 
-  apiEntries.forEach(entry => {
-    const components = parseRaceIdComponents_(entry.race_id);
-    if (!components) {
-      skipped++;
-      return;
-    }
+  // Process entries if available
+  if (apiEntries.length > 0) {
+    entriesFetched = apiEntries.length;
 
-    if (
-      components.trackCode.toUpperCase() !== trackCode.toUpperCase() ||
-      components.dateToken !== dateToken ||
-      components.raceNumber < DbRetrievalConfig.MIN_RACE_NUMBER ||
-      components.raceNumber > DbRetrievalConfig.MAX_RACE_NUMBER
-    ) {
-      skipped++;
-      return;
-    }
-
-    // Store race metadata (age, type, purse) - one entry per race
-    // Only store if at least one field has a value
-    if (!raceMetadataMap[entry.race_id]) {
-      const age = entry.age !== null && entry.age !== undefined ? String(entry.age) : null;
-      const raceType = entry.race_type !== null && entry.race_type !== undefined ? String(entry.race_type) : null;
-      const purse = entry.purse !== null && entry.purse !== undefined ? String(entry.purse) : null;
-
-      // Only create metadata entry if at least one field has a value
-      if (age || raceType || purse) {
-        raceMetadataMap[entry.race_id] = {
-          race_id: entry.race_id,
-          age: age || '',
-          race_type: raceType || '',
-          purse: purse || '',
-        };
+    apiEntries.forEach(entry => {
+      const components = parseRaceIdComponents_(entry.race_id);
+      if (!components) {
+        skipped++;
+        return;
       }
-    }
 
-    const compositeKey = `${entry.race_id}|${entry.horse_number}`;
-    if (existingKeys.has(compositeKey)) {
-      skipped++;
-      return;
-    }
+      if (
+        components.trackCode.toUpperCase() !== trackCode.toUpperCase() ||
+        components.dateToken !== dateToken ||
+        components.raceNumber < DbRetrievalConfig.MIN_RACE_NUMBER ||
+        components.raceNumber > DbRetrievalConfig.MAX_RACE_NUMBER
+      ) {
+        skipped++;
+        return;
+      }
 
-    rowsToAppend.push([
-      entry.race_id,
-      entry.horse_number,
-      entry.ml ?? '',
-      entry.live_odds ?? '',
-      entry.correct_p3 ?? '',
-      entry.double ?? '',
-    ]);
-    existingKeys.add(compositeKey);
-  });
+      // Store race metadata (age, type, purse) - one entry per race
+      // Only store if at least one field has a value
+      if (!raceMetadataMap[entry.race_id]) {
+        const age = entry.age !== null && entry.age !== undefined ? String(entry.age) : null;
+        const raceType = entry.race_type !== null && entry.race_type !== undefined ? String(entry.race_type) : null;
+        const purse = entry.purse !== null && entry.purse !== undefined ? String(entry.purse) : null;
+
+        // Only create metadata entry if at least one field has a value
+        if (age || raceType || purse) {
+          raceMetadataMap[entry.race_id] = {
+            race_id: entry.race_id,
+            age: age || '',
+            race_type: raceType || '',
+            purse: purse || '',
+          };
+        }
+      }
+
+      const compositeKey = `${entry.race_id}|${entry.horse_number}`;
+      if (existingKeys.has(compositeKey)) {
+        skipped++;
+        return;
+      }
+
+      rowsToAppend.push([
+        entry.race_id,
+        entry.horse_number,
+        entry.ml ?? '',
+        entry.live_odds ?? '',
+        entry.correct_p3 ?? '',
+        entry.double ?? '',
+      ]);
+      existingKeys.add(compositeKey);
+    });
+  }
 
   // Append entry rows
   if (rowsToAppend.length) {
@@ -235,6 +251,7 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
     databaseSheet
       .getRange(startRow, 1, rowsToAppend.length, DbRetrievalConfig.DATABASE_COLUMNS)
       .setValues(rowsToAppend);
+    entriesAppended = rowsToAppend.length;
   }
 
   // Append race metadata (columns O-R: race_id, age, type, purse)
@@ -251,6 +268,34 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
       existingRaceKeys.add(raceMeta.race_id);
     }
   });
+
+  // Process winners - store in columns L-M (race_id, winning_horse_number)
+  if (apiWinners.length > 0) {
+    apiWinners.forEach(winner => {
+      const components = parseRaceIdComponents_(winner.race_id);
+      if (!components) {
+        return;
+      }
+
+      if (
+        components.trackCode.toUpperCase() !== trackCode.toUpperCase() ||
+        components.dateToken !== dateToken ||
+        components.raceNumber < DbRetrievalConfig.MIN_RACE_NUMBER ||
+        components.raceNumber > DbRetrievalConfig.MAX_RACE_NUMBER
+      ) {
+        return;
+      }
+
+      // Only append if race_id doesn't already exist in columns L-M
+      if (!existingWinnerKeys.has(winner.race_id) && winner.winning_horse_number) {
+        winnersToAppend.push([
+          winner.race_id,              // Column L
+          winner.winning_horse_number, // Column M
+        ]);
+        existingWinnerKeys.add(winner.race_id);
+      }
+    });
+  }
 
   if (raceMetadataToAppend.length) {
     // Find the next available row in column O (starting from row 2, like winners)
@@ -272,15 +317,40 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
     databaseSheet
       .getRange(metadataStartRow, 15, raceMetadataToAppend.length, 4) // Columns O-R (15-18)
       .setValues(raceMetadataToAppend);
+    racesMetadataAppended = raceMetadataToAppend.length;
+  }
+
+  if (winnersToAppend.length) {
+    // Find the next available row in column L (starting from row 2)
+    // Find the last row with data in column L, then append after it
+    const lastRow = databaseSheet.getLastRow();
+    let winnersStartRow = 2;
+
+    if (lastRow >= 2) {
+      const existingWinners = databaseSheet.getRange(2, 12, lastRow - 1, 1).getValues(); // Column L (12)
+      // Find the last non-empty row in column L
+      for (let i = existingWinners.length - 1; i >= 0; i--) {
+        if (existingWinners[i][0] && existingWinners[i][0] !== '') {
+          winnersStartRow = 2 + i + 1; // Next row after last data
+          break;
+        }
+      }
+    }
+
+    databaseSheet
+      .getRange(winnersStartRow, 12, winnersToAppend.length, 2) // Columns L-M (12-13)
+      .setValues(winnersToAppend);
+    winnersAppended = winnersToAppend.length;
   }
 
   return {
     trackCode,
     date: dateInfo.isoDate,
-    fetched: apiEntries.length,
-    appended: rowsToAppend.length,
+    fetched: entriesFetched,
+    appended: entriesAppended,
     skipped,
-    racesMetadataAppended: raceMetadataToAppend.length,
+    racesMetadataAppended,
+    winnersAppended,
   };
 }
 
@@ -431,6 +501,42 @@ function fetchEntriesForTrack_(date, trackCode) {
   return payload.entries || [];
 }
 
+function fetchWinnersForTrack_(date, trackCode) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('API_KEY');
+  if (!apiKey) {
+    throw new Error('API_KEY is not set in Script Properties.');
+  }
+
+  const ingestionUrl = Config.DATA_INGESTION_API_URL || '';
+  const baseUrl = ingestionUrl.replace(/\/api\/races\/daily\/?$/, '');
+  const url = `${baseUrl}/api/races/winners/daily?date=${encodeURIComponent(date)}&trackCode=${encodeURIComponent(trackCode)}`;
+
+  const spreadsheetUrl = getSpreadsheetUrl();
+
+  const response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: {
+      'X-API-Key': apiKey,
+      'X-Source-Spreadsheet-URL': spreadsheetUrl,
+    },
+    muteHttpExceptions: true,
+  });
+
+  if (response.getResponseCode() !== 200) {
+    // Don't throw error if winners endpoint fails - winners may not be available yet
+    console.log(`Winners API returned ${response.getResponseCode()} for ${trackCode} on ${date}. This may be normal if races haven't completed yet.`);
+    return [];
+  }
+
+  const payload = JSON.parse(response.getContentText());
+  if (!payload.success) {
+    console.log(`Winners API responded with success=false for ${trackCode} on ${date}.`);
+    return [];
+  }
+
+  return payload.winners || [];
+}
+
 function buildDatabaseKeySet_(databaseSheet) {
   const lastRow = databaseSheet.getLastRow();
   if (lastRow < 2) {
@@ -458,6 +564,24 @@ function buildRaceMetadataKeySet_(databaseSheet) {
   const keys = new Set();
   // Column O (15) contains race_id for metadata
   const raceIdValues = databaseSheet.getRange(2, 15, lastRow - 1, 1).getValues();
+  raceIdValues.forEach(row => {
+    const raceId = row[0];
+    if (raceId && typeof raceId === 'string' && raceId.trim() !== '') {
+      keys.add(raceId.trim());
+    }
+  });
+  return keys;
+}
+
+function buildWinnerKeySet_(databaseSheet) {
+  const lastRow = databaseSheet.getLastRow();
+  if (lastRow < 2) {
+    return new Set();
+  }
+
+  const keys = new Set();
+  // Column L (12) contains race_id for winners
+  const raceIdValues = databaseSheet.getRange(2, 12, lastRow - 1, 1).getValues();
   raceIdValues.forEach(row => {
     const raceId = row[0];
     if (raceId && typeof raceId === 'string' && raceId.trim() !== '') {
