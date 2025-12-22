@@ -56,6 +56,82 @@ async function runDailyTrackingSync() {
 }
 
 /**
+ * Catch-up script: Finds the last inputted day in DATABASE and runs retrieval
+ * for all days from that day up to yesterday (inclusive).
+ * @returns {Promise<Object>} Summary of catch-up operations.
+ */
+async function runCatchUpRetrieval() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const databaseSheet = getSheetOrThrow_(ss, Config.TAB_DATABASE || 'DATABASE');
+  const trackCode = getTrackCodeFromDatabaseSheet_(databaseSheet);
+
+  // Find the last date with data in DATABASE
+  const lastDate = findLastInputtedDate_(databaseSheet, trackCode);
+  if (!lastDate) {
+    return {
+      success: false,
+      message: 'No existing data found in DATABASE. Use runDailyTrackingSync() for daily updates.',
+    };
+  }
+
+  // Get yesterday's date
+  const yesterdayInfo = getPreviousEasternDateInfo_();
+  const yesterday = new Date(yesterdayInfo.dateObj);
+
+  // Calculate all dates from lastDate to yesterday (inclusive)
+  const datesToProcess = [];
+  const currentDate = new Date(lastDate);
+  currentDate.setDate(currentDate.getDate() + 1); // Start from day after last inputted date
+
+  while (currentDate <= yesterday) {
+    datesToProcess.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  if (datesToProcess.length === 0) {
+    return {
+      success: true,
+      message: 'Already up to date. No days to catch up.',
+      datesProcessed: 0,
+    };
+  }
+
+  console.log(`Found ${datesToProcess.length} days to catch up (from ${formatDateForDisplay_(lastDate)} to ${yesterdayInfo.displayDate})`);
+
+  const results = [];
+  for (const date of datesToProcess) {
+    const dateInfo = {
+      isoDate: Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'yyyy-MM-dd'),
+      displayDate: Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'MM-dd-yy'),
+      dateObj: date,
+    };
+
+    try {
+      console.log(`Processing catch-up for ${dateInfo.isoDate}...`);
+      const result = await syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet);
+      results.push({
+        date: dateInfo.isoDate,
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      console.error(`Error processing ${dateInfo.isoDate}:`, error);
+      results.push({
+        date: dateInfo.isoDate,
+        success: false,
+        error: error.message,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    datesProcessed: datesToProcess.length,
+    results,
+  };
+}
+
+/**
  * Task 2: Fetch previous day's entries for the current track and append to DATABASE.
  * @returns {Object} Summary of API + append actions.
  */
@@ -65,6 +141,18 @@ function syncDatabaseSheet() {
   const trackCode = getTrackCodeFromDatabaseSheet_(databaseSheet);
   const dateInfo = getPreviousEasternDateInfo_();
 
+  return syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet);
+}
+
+/**
+ * Fetch entries for a specific date and append to DATABASE.
+ * Also stores race metadata (age, type, purse) in columns O-R (one row per race).
+ * @param {Object} dateInfo - Date info object with isoDate, displayDate, dateObj
+ * @param {string} trackCode - Track code
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} databaseSheet - DATABASE sheet
+ * @returns {Object} Summary of API + append actions.
+ */
+function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
   const apiEntries = fetchEntriesForTrack_(dateInfo.isoDate, trackCode);
   if (!apiEntries.length) {
     console.log(`No entries returned for ${trackCode} on ${dateInfo.isoDate}.`);
@@ -74,14 +162,20 @@ function syncDatabaseSheet() {
       fetched: 0,
       appended: 0,
       skipped: 0,
+      racesMetadataAppended: 0,
       message: 'No data returned from API.',
     };
   }
 
   const existingKeys = buildDatabaseKeySet_(databaseSheet);
+  const existingRaceKeys = buildRaceMetadataKeySet_(databaseSheet);
   const rowsToAppend = [];
+  const raceMetadataToAppend = [];
   let skipped = 0;
   const dateToken = dateInfo.isoDate.replace(/-/g, '');
+
+  // Track unique races and their metadata
+  const raceMetadataMap = {};
 
   apiEntries.forEach(entry => {
     const components = parseRaceIdComponents_(entry.race_id);
@@ -98,6 +192,16 @@ function syncDatabaseSheet() {
     ) {
       skipped++;
       return;
+    }
+
+    // Store race metadata (age, type, purse) - one entry per race
+    if (!raceMetadataMap[entry.race_id]) {
+      raceMetadataMap[entry.race_id] = {
+        race_id: entry.race_id,
+        age: entry.age ?? '',
+        race_type: entry.race_type ?? '',
+        purse: entry.purse ?? '',
+      };
     }
 
     const compositeKey = `${entry.race_id}|${entry.horse_number}`;
@@ -117,11 +221,34 @@ function syncDatabaseSheet() {
     existingKeys.add(compositeKey);
   });
 
+  // Append entry rows
   if (rowsToAppend.length) {
     const startRow = Math.max(databaseSheet.getLastRow() + 1, 2);
     databaseSheet
       .getRange(startRow, 1, rowsToAppend.length, DbRetrievalConfig.DATABASE_COLUMNS)
       .setValues(rowsToAppend);
+  }
+
+  // Append race metadata (columns O-R: race_id, age, type, purse)
+  // Only append if race_id doesn't already exist in columns O-R
+  Object.values(raceMetadataMap).forEach(raceMeta => {
+    if (!existingRaceKeys.has(raceMeta.race_id)) {
+      raceMetadataToAppend.push([
+        raceMeta.race_id,      // Column O
+        raceMeta.age,          // Column P
+        raceMeta.race_type,    // Column Q
+        raceMeta.purse,        // Column R
+      ]);
+      existingRaceKeys.add(raceMeta.race_id);
+    }
+  });
+
+  if (raceMetadataToAppend.length) {
+    const lastRow = databaseSheet.getLastRow();
+    const metadataStartRow = Math.max(lastRow + 1, 2);
+    databaseSheet
+      .getRange(metadataStartRow, 15, raceMetadataToAppend.length, 4) // Columns O-R (15-18)
+      .setValues(raceMetadataToAppend);
   }
 
   return {
@@ -130,6 +257,7 @@ function syncDatabaseSheet() {
     fetched: apiEntries.length,
     appended: rowsToAppend.length,
     skipped,
+    racesMetadataAppended: raceMetadataToAppend.length,
   };
 }
 
@@ -296,6 +424,66 @@ function buildDatabaseKeySet_(databaseSheet) {
     }
   });
   return keys;
+}
+
+function buildRaceMetadataKeySet_(databaseSheet) {
+  const lastRow = databaseSheet.getLastRow();
+  if (lastRow < 2) {
+    return new Set();
+  }
+
+  const keys = new Set();
+  // Column O (15) contains race_id for metadata
+  const raceIdValues = databaseSheet.getRange(2, 15, lastRow - 1, 1).getValues();
+  raceIdValues.forEach(row => {
+    const raceId = row[0];
+    if (raceId && typeof raceId === 'string' && raceId.trim() !== '') {
+      keys.add(raceId.trim());
+    }
+  });
+  return keys;
+}
+
+function findLastInputtedDate_(databaseSheet, trackCode) {
+  const lastRow = databaseSheet.getLastRow();
+  if (lastRow < 2) {
+    return null;
+  }
+
+  // Read race_id column (Column A) to find the latest date
+  const raceIds = databaseSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  let lastDate = null;
+
+  raceIds.forEach(row => {
+    const raceId = row[0];
+    if (!raceId || typeof raceId !== 'string') {
+      return;
+    }
+
+    const components = parseRaceIdComponents_(raceId);
+    if (
+      components &&
+      components.trackCode.toUpperCase() === trackCode.toUpperCase() &&
+      components.raceNumber >= DbRetrievalConfig.MIN_RACE_NUMBER &&
+      components.raceNumber <= DbRetrievalConfig.MAX_RACE_NUMBER
+    ) {
+      // Parse date token (YYYYMMDD) to Date object
+      const year = parseInt(components.dateToken.substring(0, 4), 10);
+      const month = parseInt(components.dateToken.substring(4, 6), 10) - 1; // JS months are 0-indexed
+      const day = parseInt(components.dateToken.substring(6, 8), 10);
+      const date = new Date(year, month, day);
+
+      if (!lastDate || date > lastDate) {
+        lastDate = date;
+      }
+    }
+  });
+
+  return lastDate;
+}
+
+function formatDateForDisplay_(date) {
+  return Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'MM-dd-yy');
 }
 
 function parseRaceIdComponents_(raceId) {

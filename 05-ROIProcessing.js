@@ -89,10 +89,17 @@ function processRoiHistorical() {
 		const winnerDataRange = databaseSheet.getRange(2, 12, lastRow - 1, 2);
 		const winnerData = winnerDataRange.getValues();
 
+		// Read race metadata columns (O-R: rows 2 to lastRow) - race_id, age, type, purse
+		const raceMetadataRange = databaseSheet.getRange(2, 15, lastRow - 1, 4);
+		const raceMetadataData = raceMetadataRange.getValues();
+
 		console.log(`📊 Read ${mainData.length} entries from DATABASE`);
 
 		// Build winners map: raceId -> winnerHorseNumber
 		const winnersMap = buildWinnersMap_(winnerData);
+
+		// Build race metadata map: raceId -> {age, type, purse}
+		const raceMetadataMap = buildRaceMetadataMap_(raceMetadataData);
 
 		// Parse and group entries by date, filtering out already extracted entries
 		const parseResult = parseEntriesByDate_(mainData);
@@ -125,8 +132,9 @@ function processRoiHistorical() {
 			try {
 				const dateRowIndices = rowIndicesByDate[date];
 				const winnersForDate = getWinnersForDate_(winnersMap, date);
+				const raceMetadataForDate = getRaceMetadataForDate_(raceMetadataMap, date);
 
-				const result = processDate_(ss, date, entriesByDate[date], winnersForDate);
+				const result = processDate_(ss, date, entriesByDate[date], winnersForDate, raceMetadataForDate);
 				summary.processedDates++;
 
 				// Mark entries as extracted immediately after processing this date
@@ -225,6 +233,57 @@ function getWinnersForDate_(winnersMap, dateToken) {
 	});
 
 	return winnersForDate;
+}
+
+/**
+ * Build race metadata map from race metadata data (columns O-R)
+ * @param {Array<Array>} raceMetadataData - Array of [raceId, age, type, purse] rows
+ * @returns {Object} Map of raceId -> {age, type, purse}
+ */
+function buildRaceMetadataMap_(raceMetadataData) {
+	const raceMetadataMap = {};
+
+	for (let i = 0; i < raceMetadataData.length; i++) {
+		const row = raceMetadataData[i];
+		const raceId = row[0]; // Column O: Race ID
+		const age = row[1];    // Column P: Age
+		const type = row[2];    // Column Q: Type
+		const purse = row[3];   // Column R: Purse
+
+		if (raceId && typeof raceId === 'string' && raceId.trim() !== '') {
+			raceMetadataMap[raceId.trim()] = {
+				age: age !== null && age !== undefined && age !== '' ? String(age) : '',
+				type: type !== null && type !== undefined && type !== '' ? String(type) : '',
+				purse: purse !== null && purse !== undefined && purse !== '' ? String(purse) : '',
+			};
+		}
+	}
+
+	return raceMetadataMap;
+}
+
+/**
+ * Get race metadata for a specific date from race metadata map
+ * @param {Object} raceMetadataMap - Map of raceId -> {age, type, purse}
+ * @param {string} dateToken - Date in YYYYMMDD format
+ * @returns {Object} Map of raceNumber -> {age, type, purse} for the date
+ */
+function getRaceMetadataForDate_(raceMetadataMap, dateToken) {
+	const raceMetadataForDate = {};
+
+	// Find all race metadata for races on this date
+	Object.keys(raceMetadataMap).forEach(raceId => {
+		const match = raceId.trim().match(/^[A-Z0-9]+_(\d{8})_(\d+)$/i);
+		if (match && match[1] === dateToken) {
+			const raceNumber = parseInt(match[2], 10);
+			if (raceNumber >= RoiHistoricalConfig.MIN_RACE_NUMBER &&
+				raceNumber <= RoiHistoricalConfig.MAX_RACE_NUMBER) {
+				raceMetadataForDate[raceNumber] = raceMetadataMap[raceId];
+			}
+		}
+	});
+
+	return raceMetadataForDate;
 }
 
 /**
@@ -341,9 +400,10 @@ function markEntriesAsExtracted_(databaseSheet, rowNumbers) {
  * @param {string} dateToken - Date in YYYYMMDD format
  * @param {Array<Object>} entries - Entries for this date
  * @param {Object} winnersForDate - Map of raceNumber -> winnerHorseNumber for this date
+ * @param {Object} raceMetadataForDate - Map of raceNumber -> {age, type, purse} for this date
  * @returns {Object} Processing result
  */
-function processDate_(ss, dateToken, entries, winnersForDate) {
+function processDate_(ss, dateToken, entries, winnersForDate, raceMetadataForDate) {
 	// Parse date token (YYYYMMDD) to Date object
 	const year = parseInt(dateToken.substring(0, 4), 10);
 	const month = parseInt(dateToken.substring(4, 6), 10) - 1; // JS months are 0-indexed
@@ -413,6 +473,33 @@ function processDate_(ss, dateToken, entries, winnersForDate) {
 				}
 			} else {
 				console.log(`  ✓ Race ${raceNumber}: ${raceEntries.length} entries (no winner found)`);
+			}
+
+			// Write race metadata (age, type, purse) to columns D, E, F
+			// Race 3: row 2 (D2, E2, F2)
+			// Race 4: row 22 (D22, E22, F22)
+			// Race 5: row 42 (D42, E42, F42)
+			// Formula: row = 2 + (raceNumber - 3) * 20
+			if (raceMetadataForDate && raceMetadataForDate[raceNumber]) {
+				const metadataRow = 2 + (raceNumber - 3) * 20;
+				const metadata = raceMetadataForDate[raceNumber];
+
+				// Only write if not already set (similar to winner logic)
+				const typeCell = targetSheet.getRange(metadataRow, 4); // Column D
+				const ageCell = targetSheet.getRange(metadataRow, 5);  // Column E
+				const purseCell = targetSheet.getRange(metadataRow, 6); // Column F
+
+				if (!typeCell.getValue() || typeCell.getValue() === '') {
+					typeCell.setValue(metadata.type || '');
+				}
+				if (!ageCell.getValue() || ageCell.getValue() === '') {
+					ageCell.setValue(metadata.age || '');
+				}
+				if (!purseCell.getValue() || purseCell.getValue() === '') {
+					purseCell.setValue(metadata.purse || '');
+				}
+
+				console.log(`  ✓ Race ${raceNumber}: Metadata written (type: ${metadata.type || 'N/A'}, age: ${metadata.age || 'N/A'}, purse: ${metadata.purse || 'N/A'})`);
 			}
 
 			racesProcessed++;
