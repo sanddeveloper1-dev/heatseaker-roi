@@ -195,13 +195,21 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
     }
 
     // Store race metadata (age, type, purse) - one entry per race
+    // Only store if at least one field has a value
     if (!raceMetadataMap[entry.race_id]) {
-      raceMetadataMap[entry.race_id] = {
-        race_id: entry.race_id,
-        age: entry.age ?? '',
-        race_type: entry.race_type ?? '',
-        purse: entry.purse ?? '',
-      };
+      const age = entry.age !== null && entry.age !== undefined ? String(entry.age) : null;
+      const raceType = entry.race_type !== null && entry.race_type !== undefined ? String(entry.race_type) : null;
+      const purse = entry.purse !== null && entry.purse !== undefined ? String(entry.purse) : null;
+
+      // Only create metadata entry if at least one field has a value
+      if (age || raceType || purse) {
+        raceMetadataMap[entry.race_id] = {
+          race_id: entry.race_id,
+          age: age || '',
+          race_type: raceType || '',
+          purse: purse || '',
+        };
+      }
     }
 
     const compositeKey = `${entry.race_id}|${entry.horse_number}`;
@@ -230,22 +238,37 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
   }
 
   // Append race metadata (columns O-R: race_id, age, type, purse)
-  // Only append if race_id doesn't already exist in columns O-R
+  // Only append if race_id doesn't already exist (metadata map only contains races with at least one value)
+  // Similar to winners pattern - append starting at row 2
   Object.values(raceMetadataMap).forEach(raceMeta => {
     if (!existingRaceKeys.has(raceMeta.race_id)) {
       raceMetadataToAppend.push([
         raceMeta.race_id,      // Column O
-        raceMeta.age,          // Column P
-        raceMeta.race_type,    // Column Q
-        raceMeta.purse,        // Column R
+        raceMeta.age || '',    // Column P
+        raceMeta.race_type || '', // Column Q
+        raceMeta.purse || '',  // Column R
       ]);
       existingRaceKeys.add(raceMeta.race_id);
     }
   });
 
   if (raceMetadataToAppend.length) {
+    // Find the next available row in column O (starting from row 2, like winners)
+    // Find the last row with data in column O, then append after it
     const lastRow = databaseSheet.getLastRow();
-    const metadataStartRow = Math.max(lastRow + 1, 2);
+    let metadataStartRow = 2;
+
+    if (lastRow >= 2) {
+      const existingMetadata = databaseSheet.getRange(2, 15, lastRow - 1, 1).getValues();
+      // Find the last non-empty row in column O
+      for (let i = existingMetadata.length - 1; i >= 0; i--) {
+        if (existingMetadata[i][0] && existingMetadata[i][0] !== '') {
+          metadataStartRow = 2 + i + 1; // Next row after last data
+          break;
+        }
+      }
+    }
+
     databaseSheet
       .getRange(metadataStartRow, 15, raceMetadataToAppend.length, 4) // Columns O-R (15-18)
       .setValues(raceMetadataToAppend);
