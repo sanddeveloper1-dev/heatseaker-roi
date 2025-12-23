@@ -509,13 +509,17 @@ function processDate_(ss, dateToken, entries, winnersForDate, raceMetadataForDat
 		}
 	}
 
-	// Append totals with dynamic formulas to TOTALS sheet
-	try {
-		appendHistoricalTotalsToSheet_(ss, sheetName);
-		console.log(`  ✓ Appended totals row for ${sheetName} to TOTALS sheet`);
-	} catch (error) {
-		console.error(`  ⚠️ Error appending totals for ${sheetName}:`, error);
-		// Don't fail the entire process if totals append fails
+	// Append totals with dynamic formulas to TOTALS sheet (only if races were processed)
+	if (racesProcessed > 0) {
+		try {
+			appendHistoricalTotalsToSheet_(ss, sheetName);
+			console.log(`  ✓ Appended totals row for ${sheetName} to TOTALS sheet`);
+		} catch (error) {
+			console.error(`  ⚠️ Error appending totals for ${sheetName}:`, error);
+			// Don't fail the entire process if totals append fails
+		}
+	} else {
+		console.log(`  ⏭️ Skipped totals append for ${sheetName} - no races processed`);
 	}
 
 	return { racesProcessed, sheetName, isNewSheet };
