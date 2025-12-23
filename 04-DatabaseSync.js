@@ -44,9 +44,16 @@ const DbRetrievalConfig = Object.freeze(
  * @returns {Promise<Object>} Summary of each step.
  */
 async function runDailyTrackingSync() {
+  console.log('=== Starting Daily Database Sync ===');
   const databaseResult = await syncDatabaseSheet();
   const teeResult = await populateTeeSheetFromDatabase();
   const totalsResult = await appendTotalsFromTee();
+
+  // Summary log
+  console.log(`=== Sync Summary ===`);
+  console.log(`Database: ${databaseResult.appended} entries, ${databaseResult.racesMetadataAppended} metadata, ${databaseResult.winnersAppended} winners`);
+  console.log(`TEE: ${Object.keys(teeResult.racesProcessed || {}).length} races processed`);
+  console.log(`Totals: ${totalsResult.appended ? 'Appended' : totalsResult.message || 'Skipped'}`);
 
   return {
     database: databaseResult,
@@ -156,6 +163,9 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
   const apiEntries = fetchEntriesForTrack_(dateInfo.isoDate, trackCode);
   const apiWinners = fetchWinnersForTrack_(dateInfo.isoDate, trackCode);
 
+  // Log what was fetched from API
+  console.log(`[${dateInfo.isoDate}] ${trackCode}: Fetched ${apiEntries.length} entries, ${apiWinners.length} winners from API`);
+
   // Initialize return values
   let entriesFetched = 0;
   let entriesAppended = 0;
@@ -164,7 +174,7 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
   let winnersAppended = 0;
 
   if (!apiEntries.length && !apiWinners.length) {
-    console.log(`No entries or winners returned for ${trackCode} on ${dateInfo.isoDate}.`);
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: WARNING - No entries or winners returned from API`);
     return {
       trackCode,
       date: dateInfo.isoDate,
@@ -252,6 +262,9 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
       .getRange(startRow, 1, rowsToAppend.length, DbRetrievalConfig.DATABASE_COLUMNS)
       .setValues(rowsToAppend);
     entriesAppended = rowsToAppend.length;
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: Appended ${entriesAppended} race entries (${skipped} skipped)`);
+  } else if (entriesFetched > 0) {
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: WARNING - ${entriesFetched} entries fetched but none appended (all duplicates or filtered)`);
   }
 
   // Append race metadata (columns O-R: race_id, age, type, purse)
@@ -318,6 +331,9 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
       .getRange(metadataStartRow, 15, raceMetadataToAppend.length, 4) // Columns O-R (15-18)
       .setValues(raceMetadataToAppend);
     racesMetadataAppended = raceMetadataToAppend.length;
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: Appended ${racesMetadataAppended} race metadata records`);
+  } else if (entriesFetched > 0) {
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: WARNING - No race metadata appended (${Object.keys(raceMetadataMap).length} races processed but no metadata found)`);
   }
 
   if (winnersToAppend.length) {
@@ -341,7 +357,15 @@ function syncDatabaseSheetForDate_(dateInfo, trackCode, databaseSheet) {
       .getRange(winnersStartRow, 12, winnersToAppend.length, 2) // Columns L-M (12-13)
       .setValues(winnersToAppend);
     winnersAppended = winnersToAppend.length;
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: Appended ${winnersAppended} winners`);
+  } else if (apiWinners.length > 0) {
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: WARNING - ${apiWinners.length} winners fetched but none appended (all duplicates or filtered)`);
+  } else {
+    console.log(`[${dateInfo.isoDate}] ${trackCode}: WARNING - No winners available (races may not be completed yet)`);
   }
+
+  // Summary log
+  console.log(`[${dateInfo.isoDate}] ${trackCode}: Sync complete - Entries: ${entriesAppended}/${entriesFetched}, Metadata: ${racesMetadataAppended}, Winners: ${winnersAppended}`);
 
   return {
     trackCode,
@@ -424,7 +448,9 @@ function appendTotalsFromTee() {
     teeSheet.getRange(DbRetrievalConfig.TEE_TOTAL_RANGES.ROI).getValue(),
   ];
 
-  const appendRow = Math.max(totalsSheet.getLastRow() + 1, DbRetrievalConfig.TOTALS_START_ROW);
+  // Find last row with data in columns A-E only (ignore column F formulas)
+  const lastRowInColumnsAE = findLastRowInColumnsAE_(totalsSheet);
+  const appendRow = Math.max(lastRowInColumnsAE + 1, DbRetrievalConfig.TOTALS_START_ROW);
   totalsSheet
     .getRange(appendRow, 1, 1, 5)
     .setValues([[dateLabel, totalsRow[0], totalsRow[1], totalsRow[2], totalsRow[3]]]);
@@ -719,8 +745,40 @@ function writeRaceBlockToTee_(teeSheet, headerRow, values) {
   teeSheet.getRange(dataStartRow, 1, values.length, 5).setValues(values);
 }
 
-function totalsDateExists_(totalsSheet, dateLabel) {
+/**
+ * Find the last row with data in columns A-E only (ignores column F formulas).
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} totalsSheet - TOTALS sheet
+ * @returns {number} Last row number with data in columns A-E
+ */
+function findLastRowInColumnsAE_(totalsSheet) {
   const lastRow = totalsSheet.getLastRow();
+  if (lastRow < DbRetrievalConfig.TOTALS_START_ROW) {
+    return DbRetrievalConfig.TOTALS_START_ROW - 1;
+  }
+
+  // Check columns A-E (columns 1-5) starting from TOTALS_START_ROW
+  const range = totalsSheet.getRange(
+    DbRetrievalConfig.TOTALS_START_ROW,
+    1,
+    lastRow - DbRetrievalConfig.TOTALS_START_ROW + 1,
+    5
+  );
+  const values = range.getValues();
+
+  // Find the last row that has at least one non-empty cell in columns A-E
+  for (let i = values.length - 1; i >= 0; i--) {
+    const row = values[i];
+    // Check if any cell in columns A-E has data
+    if (row.some(cell => cell !== null && cell !== '' && cell !== undefined)) {
+      return DbRetrievalConfig.TOTALS_START_ROW + i;
+    }
+  }
+
+  return DbRetrievalConfig.TOTALS_START_ROW - 1;
+}
+
+function totalsDateExists_(totalsSheet, dateLabel) {
+  const lastRow = findLastRowInColumnsAE_(totalsSheet);
   if (lastRow < DbRetrievalConfig.TOTALS_START_ROW) {
     return false;
   }
