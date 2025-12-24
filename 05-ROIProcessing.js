@@ -716,13 +716,21 @@ function appendHistoricalTotalsToSheet_(ss, sheetName) {
 			const dateRange = totalsSheet.getRange(startRow, dateColumn, lastDataRow - startRow + 1, 1);
 			const existingDates = dateRange.getValues();
 
+			// Normalize the input sheet name (replace - with / to handle both formats)
+			const normalizedSheetName = String(sheetName).trim().replace(/-/g, '/');
+
 			for (let i = 0; i < existingDates.length; i++) {
 				const existingDate = existingDates[i][0];
 				// Compare as strings, handling different types
 				if (existingDate !== null && existingDate !== undefined && existingDate !== '') {
-					const existingDateStr = String(existingDate).trim();
-					const sheetNameStr = String(sheetName).trim();
-					if (existingDateStr === sheetNameStr) {
+					let existingDateStr;
+					if (existingDate instanceof Date) {
+						existingDateStr = Utilities.formatDate(existingDate, RoiHistoricalConfig.TIMEZONE, 'MM/dd/yy');
+					} else {
+						// Normalize existing date string (replace - with /) before comparison
+						existingDateStr = String(existingDate).trim().replace(/-/g, '/');
+					}
+					if (existingDateStr === normalizedSheetName) {
 						console.log(`⏭️ Date ${sheetName} already exists in TOTALS sheet at row ${startRow + i} (found: "${existingDate}"), skipping`);
 						return;
 					}

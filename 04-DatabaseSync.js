@@ -47,7 +47,7 @@ async function runDailyTrackingSync() {
   console.log('=== Starting Daily Database Sync ===');
   const databaseResult = await syncDatabaseSheet();
   const teeResult = await populateTeeSheetFromDatabase();
-  const totalsResult = await appendTotalsFromTee();
+  const totalsResult = await appendTotalsFromTee(teeResult);
 
   // Summary log
   console.log(`=== Sync Summary ===`);
@@ -109,7 +109,7 @@ async function runCatchUpRetrieval() {
   for (const date of datesToProcess) {
     const dateInfo = {
       isoDate: Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'yyyy-MM-dd'),
-      displayDate: Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'MM-dd-yy'),
+      displayDate: Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'MM/dd/yy'),
       dateObj: date,
     };
 
@@ -424,14 +424,28 @@ function populateTeeSheetFromDatabase() {
 
 /**
  * Task 4: Append totals from TEE into TOTALS sheet for the previous day.
+ * Only appends if races were actually processed.
+ * @param {Object} teeResult - Result from populateTeeSheetFromDatabase() containing racesProcessed info
  * @returns {Object} Append summary.
  */
-function appendTotalsFromTee() {
+function appendTotalsFromTee(teeResult) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const teeSheet = getSheetOrThrow_(ss, Config.TAB_TEE || 'TEE');
   const totalsSheet = getSheetOrThrow_(ss, Config.TAB_TOTALS || 'TOTALS');
   const dateInfo = getPreviousEasternDateInfo_();
+  // Use MM/dd/yy format to match historical processing format
   const dateLabel = dateInfo.displayDate;
+
+  // Check if any races were actually processed
+  const racesProcessed = teeResult?.racesProcessed || {};
+  const racesWithData = Object.values(racesProcessed).filter(race => race.written > 0);
+  if (racesWithData.length === 0) {
+    return {
+      date: dateLabel,
+      appended: false,
+      message: 'No races processed - skipping totals append.',
+    };
+  }
 
   if (totalsDateExists_(totalsSheet, dateLabel)) {
     return {
@@ -489,7 +503,7 @@ function getPreviousEasternDateInfo_() {
 
   return {
     isoDate: Utilities.formatDate(easternNow, tz, 'yyyy-MM-dd'),
-    displayDate: Utilities.formatDate(easternNow, tz, 'MM-dd-yy'),
+    displayDate: Utilities.formatDate(easternNow, tz, 'MM/dd/yy'),
     dateObj: easternNow,
   };
 }
@@ -656,7 +670,7 @@ function findLastInputtedDate_(databaseSheet, trackCode) {
 }
 
 function formatDateForDisplay_(date) {
-  return Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'MM-dd-yy');
+  return Utilities.formatDate(date, DbRetrievalConfig.TIMEZONE, 'MM/dd/yy');
 }
 
 function parseRaceIdComponents_(raceId) {
@@ -783,6 +797,9 @@ function totalsDateExists_(totalsSheet, dateLabel) {
     return false;
   }
 
+  // Normalize the input date label (replace - with / to handle both formats)
+  const normalizedInputDate = dateLabel.toString().replace(/-/g, '/');
+
   const range = totalsSheet.getRange(
     DbRetrievalConfig.TOTALS_START_ROW,
     1,
@@ -796,9 +813,12 @@ function totalsDateExists_(totalsSheet, dateLabel) {
       return false;
     }
     if (value instanceof Date) {
-      const formatted = Utilities.formatDate(value, DbRetrievalConfig.TIMEZONE, 'MM-dd-yy');
-      return formatted === dateLabel;
+      // Format as MM/dd/yy to match historical processing format
+      const formatted = Utilities.formatDate(value, DbRetrievalConfig.TIMEZONE, 'MM/dd/yy');
+      return formatted === normalizedInputDate;
     }
-    return value.toString() === dateLabel;
+    // Normalize existing date string (replace - with /) before comparison
+    const normalizedExistingDate = value.toString().replace(/-/g, '/');
+    return normalizedExistingDate === normalizedInputDate;
   });
 }
