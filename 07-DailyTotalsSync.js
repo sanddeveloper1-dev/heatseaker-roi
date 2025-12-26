@@ -99,7 +99,7 @@ function syncDailyTotals() {
 		// Append each missing date
 		for (const sheetName of missingDates) {
 			try {
-				appendTotalsRow_(totalsSheet, sheetName);
+				appendTotalsRow_(ss, totalsSheet, sheetName);
 				summary.appended++;
 				console.log(`✅ Appended ${sheetName}`);
 			} catch (error) {
@@ -244,10 +244,17 @@ function findLastRowInColumnA_(totalsSheet) {
 
 /**
  * Append a totals row with formulas for a specific date sheet
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - Spreadsheet
  * @param {GoogleAppsScript.Spreadsheet.Sheet} totalsSheet - TOTALS sheet
  * @param {string} sheetName - Name of the date sheet (e.g., "01/01/24")
  */
-function appendTotalsRow_(totalsSheet, sheetName) {
+function appendTotalsRow_(ss, totalsSheet, sheetName) {
+	// Verify the sheet exists before creating formulas
+	const dateSheet = ss.getSheetByName(sheetName);
+	if (!dateSheet) {
+		throw new Error(`Sheet "${sheetName}" does not exist - cannot create formula references`);
+	}
+
 	// Find next available row based on column A
 	const lastDataRow = findLastRowInColumnA_(totalsSheet);
 	const nextRow = Math.max(lastDataRow + 1, DailyTotalsConfig.TOTALS_START_ROW);
@@ -266,13 +273,26 @@ function appendTotalsRow_(totalsSheet, sheetName) {
 	const betsFormula = `=${escapedSheetName}!${DailyTotalsConfig.TEE_CELL_BETS}`;
 	const winsFormula = `=${escapedSheetName}!${DailyTotalsConfig.TEE_CELL_WINS}`;
 
-	totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_BET + 1).setFormula(betFormula);
-	totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_COLLECT + 1).setFormula(collectFormula);
-	totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_BETS + 1).setFormula(betsFormula);
-	totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_WINS + 1).setFormula(winsFormula);
+	const betCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_BET + 1);
+	betCell.setFormula(betFormula);
+
+	const collectCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_COLLECT + 1);
+	collectCell.setFormula(collectFormula);
+
+	const betsCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_BETS + 1);
+	betsCell.setFormula(betsFormula);
+
+	const winsCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_WINS + 1);
+	winsCell.setFormula(winsFormula);
 
 	// Force flush to ensure writes are committed
 	SpreadsheetApp.flush();
+
+	// Verify formulas were set correctly
+	const verifyBet = betCell.getFormula();
+	if (!verifyBet || !verifyBet.startsWith('=')) {
+		throw new Error(`Failed to set BET formula for ${sheetName}. Expected formula starting with "=", got "${verifyBet}"`);
+	}
 
 	console.log(`  ✓ Appended totals row for ${sheetName} at row ${nextRow}`);
 }
