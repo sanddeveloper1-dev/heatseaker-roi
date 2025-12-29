@@ -274,16 +274,28 @@ function appendTotalsRow_(ss, totalsSheet, sheetName) {
 	const winsFormula = `=${escapedSheetName}!${DailyTotalsConfig.TEE_CELL_WINS}`;
 
 	const betCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_BET + 1);
-	betCell.setFormula(betFormula);
-
 	const collectCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_COLLECT + 1);
-	collectCell.setFormula(collectFormula);
-
 	const betsCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_BETS + 1);
-	betsCell.setFormula(betsFormula);
-
 	const winsCell = totalsSheet.getRange(nextRow, DailyTotalsConfig.TOTALS_COL_WINS + 1);
-	winsCell.setFormula(winsFormula);
+
+	// Clear cells first to remove any existing values/formats
+	betCell.clear();
+	collectCell.clear();
+	betsCell.clear();
+	winsCell.clear();
+
+	// Set number format to number BEFORE setting formulas
+	betCell.setNumberFormat('0');
+	collectCell.setNumberFormat('0');
+	betsCell.setNumberFormat('0');
+	winsCell.setNumberFormat('0');
+
+	// Use setValue() with formula string - Google Sheets treats values starting with "=" as formulas
+	// This is more reliable than setFormula() in some edge cases
+	betCell.setValue(betFormula);
+	collectCell.setValue(collectFormula);
+	betsCell.setValue(betsFormula);
+	winsCell.setValue(winsFormula);
 
 	// Force flush to ensure writes are committed
 	SpreadsheetApp.flush();
