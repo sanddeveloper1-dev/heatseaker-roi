@@ -16,7 +16,8 @@
  * Tasks:
  *  1. Populate DATABASE tab with previous day's entries from backend API
  *  2. Move DATABASE data into TEE sheet layout (races 3-15)
- *  3. Append TEE totals into TOTALS tab
+ * 
+ * Note: TOTALS sheet appending is now handled by 07-DailyTotalsSync.js
  * 
  * Main entry point: runDailyTrackingSync()
  */
@@ -47,18 +48,16 @@ async function runDailyTrackingSync() {
   console.log('=== Starting Daily Database Sync ===');
   const databaseResult = await syncDatabaseSheet();
   const teeResult = await populateTeeSheetFromDatabase();
-  const totalsResult = await appendTotalsFromTee(teeResult);
 
   // Summary log
   console.log(`=== Sync Summary ===`);
   console.log(`Database: ${databaseResult.appended} entries, ${databaseResult.racesMetadataAppended} metadata, ${databaseResult.winnersAppended} winners`);
   console.log(`TEE: ${Object.keys(teeResult.racesProcessed || {}).length} races processed`);
-  console.log(`Totals: ${totalsResult.appended ? 'Appended' : totalsResult.message || 'Skipped'}`);
+  console.log(`Note: TOTALS sheet appending is now handled by 07-DailyTotalsSync.js`);
 
   return {
     database: databaseResult,
     tee: teeResult,
-    totals: totalsResult,
   };
 }
 
@@ -422,58 +421,8 @@ function populateTeeSheetFromDatabase() {
   };
 }
 
-/**
- * Task 4: Append totals from TEE into TOTALS sheet for the previous day.
- * Only appends if races were actually processed.
- * @param {Object} teeResult - Result from populateTeeSheetFromDatabase() containing racesProcessed info
- * @returns {Object} Append summary.
- */
-function appendTotalsFromTee(teeResult) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const teeSheet = getSheetOrThrow_(ss, Config.TAB_TEE || 'TEE');
-  const totalsSheet = getSheetOrThrow_(ss, Config.TAB_TOTALS || 'TOTALS');
-  const dateInfo = getPreviousEasternDateInfo_();
-  // Use MM/dd/yy format to match historical processing format
-  const dateLabel = dateInfo.displayDate;
-
-  // Check if any races were actually processed
-  const racesProcessed = teeResult?.racesProcessed || {};
-  const racesWithData = Object.values(racesProcessed).filter(race => race.written > 0);
-  if (racesWithData.length === 0) {
-    return {
-      date: dateLabel,
-      appended: false,
-      message: 'No races processed - skipping totals append.',
-    };
-  }
-
-  if (totalsDateExists_(totalsSheet, dateLabel)) {
-    return {
-      date: dateLabel,
-      appended: false,
-      message: 'Date already logged in TOTALS.',
-    };
-  }
-
-  const totalsRow = [
-    teeSheet.getRange(DbRetrievalConfig.TEE_TOTAL_RANGES.WIN_BET).getValue(),
-    teeSheet.getRange(DbRetrievalConfig.TEE_TOTAL_RANGES.WIN_COLLECT).getValue(),
-    teeSheet.getRange(DbRetrievalConfig.TEE_TOTAL_RANGES.GP).getValue(),
-    teeSheet.getRange(DbRetrievalConfig.TEE_TOTAL_RANGES.ROI).getValue(),
-  ];
-
-  // Find last row with data in columns A-E only (ignore column F formulas)
-  const lastRowInColumnsAE = findLastRowInColumnsAE_(totalsSheet);
-  const appendRow = Math.max(lastRowInColumnsAE + 1, DbRetrievalConfig.TOTALS_START_ROW);
-  totalsSheet
-    .getRange(appendRow, 1, 1, 5)
-    .setValues([[dateLabel, totalsRow[0], totalsRow[1], totalsRow[2], totalsRow[3]]]);
-
-  return {
-    date: dateLabel,
-    appended: true,
-  };
-}
+// Note: TOTALS sheet appending is now handled by 07-DailyTotalsSync.js
+// This ensures sheets are fully populated before formulas are created
 
 // -----------------------------
 // Helper functions
@@ -759,66 +708,3 @@ function writeRaceBlockToTee_(teeSheet, headerRow, values) {
   teeSheet.getRange(dataStartRow, 1, values.length, 5).setValues(values);
 }
 
-/**
- * Find the last row with data in columns A-E only (ignores column F formulas).
- * @param {GoogleAppsScript.Spreadsheet.Sheet} totalsSheet - TOTALS sheet
- * @returns {number} Last row number with data in columns A-E
- */
-function findLastRowInColumnsAE_(totalsSheet) {
-  const lastRow = totalsSheet.getLastRow();
-  if (lastRow < DbRetrievalConfig.TOTALS_START_ROW) {
-    return DbRetrievalConfig.TOTALS_START_ROW - 1;
-  }
-
-  // Check columns A-E (columns 1-5) starting from TOTALS_START_ROW
-  const range = totalsSheet.getRange(
-    DbRetrievalConfig.TOTALS_START_ROW,
-    1,
-    lastRow - DbRetrievalConfig.TOTALS_START_ROW + 1,
-    5
-  );
-  const values = range.getValues();
-
-  // Find the last row that has at least one non-empty cell in columns A-E
-  for (let i = values.length - 1; i >= 0; i--) {
-    const row = values[i];
-    // Check if any cell in columns A-E has data
-    if (row.some(cell => cell !== null && cell !== '' && cell !== undefined)) {
-      return DbRetrievalConfig.TOTALS_START_ROW + i;
-    }
-  }
-
-  return DbRetrievalConfig.TOTALS_START_ROW - 1;
-}
-
-function totalsDateExists_(totalsSheet, dateLabel) {
-  const lastRow = findLastRowInColumnsAE_(totalsSheet);
-  if (lastRow < DbRetrievalConfig.TOTALS_START_ROW) {
-    return false;
-  }
-
-  // Normalize the input date label (replace - with / to handle both formats)
-  const normalizedInputDate = dateLabel.toString().replace(/-/g, '/');
-
-  const range = totalsSheet.getRange(
-    DbRetrievalConfig.TOTALS_START_ROW,
-    1,
-    lastRow - DbRetrievalConfig.TOTALS_START_ROW + 1,
-    1
-  );
-  const values = range.getValues();
-  return values.some(row => {
-    const value = row[0];
-    if (!value) {
-      return false;
-    }
-    if (value instanceof Date) {
-      // Format as MM/dd/yy to match historical processing format
-      const formatted = Utilities.formatDate(value, DbRetrievalConfig.TIMEZONE, 'MM/dd/yy');
-      return formatted === normalizedInputDate;
-    }
-    // Normalize existing date string (replace - with /) before comparison
-    const normalizedExistingDate = value.toString().replace(/-/g, '/');
-    return normalizedExistingDate === normalizedInputDate;
-  });
-}
