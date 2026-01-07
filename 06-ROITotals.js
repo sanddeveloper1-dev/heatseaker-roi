@@ -21,25 +21,30 @@
  * - Handles execution time limits for large datasets
  */
 
+// Use centralized Config with fallback defaults
+// Allows per-file customization by overriding specific properties if needed
 const RoiTotalsConfig = {
+	// Sheet names from central Config
 	TOTALS_SHEET_NAME: Config?.TAB_TOTALS || 'TOTALS',
 	TEE_SHEET_NAME: Config?.TAB_TEE || 'TEE',
-	TOTALS_START_ROW: 11,
+
+	// TOTALS configuration from central Config
+	TOTALS_START_ROW: Config?.DB_TRACKING?.TOTALS_START_ROW || 11,
 	TIMEZONE: Config?.DB_TRACKING?.TIMEZONE || 'America/New_York',
 
-	// Cell references in TEE sheets for totals
-	TEE_CELL_BET: 'BI2',      // BET
-	TEE_CELL_COLLECT: 'BJ2',  // COLLECT
-	TEE_CELL_BETS: 'BM2',     // BETS
-	TEE_CELL_WINS: 'BN2',     // WINS
-	TEE_CELL_PROCESSED: 'BR1', // Flag to mark sheet as processed (TRUE/FALSE)
+	// Cell references in TEE sheets for totals - from central Config
+	TEE_CELL_BET: Config?.DB_TRACKING?.TEE_CELLS?.BET || Config?.DB_TRACKING?.TEE_TOTAL_RANGES?.WIN_BET || 'BI2',
+	TEE_CELL_COLLECT: Config?.DB_TRACKING?.TEE_CELLS?.COLLECT || Config?.DB_TRACKING?.TEE_TOTAL_RANGES?.WIN_COLLECT || 'BO1',
+	TEE_CELL_BETS: Config?.DB_TRACKING?.TEE_CELLS?.BETS || Config?.DB_TRACKING?.TEE_TOTAL_RANGES?.GP || 'BM2',
+	TEE_CELL_WINS: Config?.DB_TRACKING?.TEE_CELLS?.WINS || Config?.DB_TRACKING?.TEE_TOTAL_RANGES?.ROI || 'BN2',
+	TEE_CELL_PROCESSED: Config?.DB_TRACKING?.TEE_CELLS?.PROCESSED || 'BR1', // Flag to mark sheet as processed (TRUE/FALSE)
 
-	// TOTALS sheet column indices (0-based)
-	TOTALS_COL_DATE: 0,       // Column A: DATES
-	TOTALS_COL_BET: 1,        // Column B: BET
-	TOTALS_COL_COLLECT: 2,    // Column C: COLLECT
-	TOTALS_COL_BETS: 3,       // Column D: BETS
-	TOTALS_COL_WINS: 4,       // Column E: WINS
+	// TOTALS sheet column indices (0-based) - from central Config
+	TOTALS_COL_DATE: Config?.DB_TRACKING?.TOTALS_COLUMNS?.DATE ?? 0,       // Column A: DATES
+	TOTALS_COL_BET: Config?.DB_TRACKING?.TOTALS_COLUMNS?.BET ?? 1,         // Column B: BET
+	TOTALS_COL_COLLECT: Config?.DB_TRACKING?.TOTALS_COLUMNS?.COLLECT ?? 2, // Column C: COLLECT
+	TOTALS_COL_BETS: Config?.DB_TRACKING?.TOTALS_COLUMNS?.BETS ?? 3,       // Column D: BETS
+	TOTALS_COL_WINS: Config?.DB_TRACKING?.TOTALS_COLUMNS?.WINS ?? 4,       // Column E: WINS
 
 	// Performance settings
 	MAX_EXECUTION_TIME_MS: 5.5 * 60 * 1000, // 5.5 minutes (leave buffer before 6 min limit)

@@ -24,11 +24,16 @@
  * Note: TOTALS sheet appending is now handled by 07-DailyTotalsSync.js
  */
 
+// Use centralized Config with fallback defaults
+// Allows per-file customization by overriding specific properties if needed
 const RoiHistoricalConfig = {
+	// Sheet names from central Config
 	DATABASE_SHEET_NAME: Config?.TAB_DATABASE || 'DATABASE',
 	TEE_SHEET_NAME: Config?.TAB_TEE || 'TEE',
+	
+	// Race configuration from central Config
 	MIN_RACE_NUMBER: Config?.DB_TRACKING?.MIN_RACE_NUMBER || 3,
-	MAX_RACE_NUMBER: Config?.MAX_RACES || 15,
+	MAX_RACE_NUMBER: Config?.DB_TRACKING?.MAX_RACE_NUMBER || Config?.MAX_RACES || 15,
 	TIMEZONE: Config?.DB_TRACKING?.TIMEZONE || 'America/New_York',
 
 	// DATABASE column indices (0-based)

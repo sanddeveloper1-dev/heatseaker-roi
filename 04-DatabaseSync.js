@@ -22,23 +22,24 @@
  * Main entry point: runDailyTrackingSync()
  */
 
-const DbRetrievalConfig = Object.freeze(
-  Config.DB_TRACKING || {
-    TIMEZONE: 'America/New_York',
-    MIN_RACE_NUMBER: 3,
-    MAX_RACE_NUMBER: Config.MAX_RACES || 15,
-    MAX_HORSES_PER_RACE: Config.HORSE_NUMBER_MAX || 16,
-    DATABASE_TRACK_CODE_CELL: 'J1',
-    TOTALS_START_ROW: 11,
-    TEE_TOTAL_RANGES: {
-      WIN_BET: 'BI2',
-      WIN_COLLECT: 'BJ2',
-      GP: 'BM2',
-      ROI: 'BN2',
-    },
-    DATABASE_COLUMNS: 6,
-  }
-);
+// Use centralized Config.DB_TRACKING with fallback defaults
+// Allows per-file customization by overriding specific properties if needed
+const DbRetrievalConfig = Object.freeze({
+  TIMEZONE: Config?.DB_TRACKING?.TIMEZONE || 'America/New_York',
+  MIN_RACE_NUMBER: Config?.DB_TRACKING?.MIN_RACE_NUMBER || 3,
+  MAX_RACE_NUMBER: Config?.DB_TRACKING?.MAX_RACE_NUMBER || Config?.MAX_RACES || 15,
+  MAX_HORSES_PER_RACE: Config?.DB_TRACKING?.MAX_HORSES_PER_RACE || Config?.HORSE_NUMBER_MAX || 16,
+  DATABASE_TRACK_CODE_CELL: Config?.DB_TRACKING?.DATABASE_TRACK_CODE_CELL || 'J1',
+  TOTALS_START_ROW: Config?.DB_TRACKING?.TOTALS_START_ROW || 11,
+  DATABASE_COLUMNS: Config?.DB_TRACKING?.DATABASE_COLUMNS || 6,
+  // Use centralized TEE cell references
+  TEE_TOTAL_RANGES: Config?.DB_TRACKING?.TEE_TOTAL_RANGES || Config?.DB_TRACKING?.TEE_CELLS || {
+    WIN_BET: 'BI2',
+    WIN_COLLECT: 'BO1',
+    GP: 'BM2',
+    ROI: 'BN2',
+  },
+});
 
 /**
  * Main entry point that performs Tasks 2, 3, and 4 in order.
