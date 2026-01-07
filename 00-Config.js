@@ -69,6 +69,11 @@ const Config = {
 			GP: 'BM2',           // Maps to TEE_CELLS.BETS
 			ROI: 'BN2',          // Maps to TEE_CELLS.WINS
 		},
+
+		// TEE Formula Sync Configuration
+		// Used in: 08-TeeFormulaSync.js
+		// Cell to track formula sync progress (set to timestamp when sync starts, cleared when complete)
+		TEE_FORMULA_SYNC_PROGRESS_CELL: 'BS1', // Progress tracking cell
 	},
 
 	// --- Ratio Template Tab Layout (Manual Bet (Ratio).js) ---

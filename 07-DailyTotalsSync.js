@@ -289,9 +289,11 @@ function appendTotalsRow_(ss, totalsSheet, sheetName) {
 	betsCell.clear();
 	winsCell.clear();
 
-	// Set number format to number BEFORE setting formulas
-	betCell.setNumberFormat('0');
-	collectCell.setNumberFormat('0');
+	// Set number formats BEFORE setting formulas
+	// Columns B and C (BET and COLLECT) use currency format
+	betCell.setNumberFormat('$#,##0.00');
+	collectCell.setNumberFormat('$#,##0.00');
+	// Columns D and E (BETS and WINS) use number format
 	betsCell.setNumberFormat('0');
 	winsCell.setNumberFormat('0');
 
@@ -301,6 +303,22 @@ function appendTotalsRow_(ss, totalsSheet, sheetName) {
 	collectCell.setValue(collectFormula);
 	betsCell.setValue(betsFormula);
 	winsCell.setValue(winsFormula);
+
+	// Apply formatting to columns B-E (BET, COLLECT, BETS, WINS)
+	// Get range for all four columns at once for efficiency
+	const formatRange = totalsSheet.getRange(
+		nextRow,
+		DailyTotalsConfig.TOTALS_COL_BET + 1,
+		1,
+		4 // 4 columns: B, C, D, E
+	);
+
+	// Apply formatting: gray background, bold font, center alignment, Arial 11
+	formatRange.setBackground('#d9d9d9'); // Light gray background
+	formatRange.setFontWeight('bold');
+	formatRange.setHorizontalAlignment('center');
+	formatRange.setFontFamily('Arial');
+	formatRange.setFontSize(11);
 
 	// Force flush to ensure writes are committed
 	SpreadsheetApp.flush();
