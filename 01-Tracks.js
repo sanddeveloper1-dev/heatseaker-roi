@@ -73,6 +73,16 @@ const tracks = [
     winBet: 730,
   },
   {
+    trackName: 'OAKLAWN',
+    id: '156NG2UVhNvAOj4x2682RPMmCGSjmYrKapOv8eP7UwYM',
+    trackCode: 'OP',
+    betTrackCode: 'OPM',
+    scriptId: '13hSapRl_MVbvdjbcxNYbF2WT854JKiG5_u2N2gXuWa1xJ-mi6S2jFw_L',
+    pickThreeValue: 2,
+    doubleValue: 1,
+    winBet: 10,
+  },
+  {
     trackName: 'PARX',
     id: '1R2ymJog_rYkf0EOw55haQt3dNvYFT0_BLsmgdzIdOKY',
     trackCode: 'PRX',

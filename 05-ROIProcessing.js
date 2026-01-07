@@ -20,14 +20,20 @@
  * - Winner tracking and population in TEE sheets
  * - Progress tracking via Column G flag
  * - Creates dated TEE sheets (MM/dd/yy format) for daily ROI tracking
+ * 
+ * Note: TOTALS sheet appending is now handled by 07-DailyTotalsSync.js
  */
 
+// Use centralized Config with fallback defaults
+// Allows per-file customization by overriding specific properties if needed
 const RoiHistoricalConfig = {
+	// Sheet names from central Config
 	DATABASE_SHEET_NAME: Config?.TAB_DATABASE || 'DATABASE',
 	TEE_SHEET_NAME: Config?.TAB_TEE || 'TEE',
-	TOTALS_SHEET_NAME: Config?.TAB_TOTALS || 'TOTALS',
+	
+	// Race configuration from central Config
 	MIN_RACE_NUMBER: Config?.DB_TRACKING?.MIN_RACE_NUMBER || 3,
-	MAX_RACE_NUMBER: Config?.MAX_RACES || 15,
+	MAX_RACE_NUMBER: Config?.DB_TRACKING?.MAX_RACE_NUMBER || Config?.MAX_RACES || 15,
 	TIMEZONE: Config?.DB_TRACKING?.TIMEZONE || 'America/New_York',
 
 	// DATABASE column indices (0-based)
@@ -40,20 +46,6 @@ const RoiHistoricalConfig = {
 	COL_EXTRACTED: 6,      // Column G: Extracted flag (TRUE/FALSE)
 	COL_WINNER_RACE_ID: 11, // Column L: Winner Race Date & Number
 	COL_WINNER_HORSE: 12,   // Column M: Winner Horse Number
-
-	// TOTALS sheet configuration
-	TOTALS_START_ROW: 11,
-	TEE_CELL_BET: 'BI2',      // BET
-	TEE_CELL_COLLECT: 'BJ2',  // COLLECT
-	TEE_CELL_BETS: 'BM2',     // BETS
-	TEE_CELL_WINS: 'BN2',     // WINS
-
-	// TOTALS sheet column indices (0-based)
-	TOTALS_COL_DATE: 0,       // Column A: DATES
-	TOTALS_COL_BET: 1,        // Column B: BET
-	TOTALS_COL_COLLECT: 2,    // Column C: COLLECT
-	TOTALS_COL_BETS: 3,       // Column D: BETS
-	TOTALS_COL_WINS: 4,       // Column E: WINS
 
 	// Performance settings
 	MAX_EXECUTION_TIME_MS: 5.5 * 60 * 1000, // 5.5 minutes (leave buffer before 6 min limit)
@@ -89,10 +81,17 @@ function processRoiHistorical() {
 		const winnerDataRange = databaseSheet.getRange(2, 12, lastRow - 1, 2);
 		const winnerData = winnerDataRange.getValues();
 
+		// Read race metadata columns (O-R: rows 2 to lastRow) - race_id, age, type, purse
+		const raceMetadataRange = databaseSheet.getRange(2, 15, lastRow - 1, 4);
+		const raceMetadataData = raceMetadataRange.getValues();
+
 		console.log(`📊 Read ${mainData.length} entries from DATABASE`);
 
 		// Build winners map: raceId -> winnerHorseNumber
 		const winnersMap = buildWinnersMap_(winnerData);
+
+		// Build race metadata map: raceId -> {age, type, purse}
+		const raceMetadataMap = buildRaceMetadataMap_(raceMetadataData);
 
 		// Parse and group entries by date, filtering out already extracted entries
 		const parseResult = parseEntriesByDate_(mainData);
@@ -125,8 +124,9 @@ function processRoiHistorical() {
 			try {
 				const dateRowIndices = rowIndicesByDate[date];
 				const winnersForDate = getWinnersForDate_(winnersMap, date);
+				const raceMetadataForDate = getRaceMetadataForDate_(raceMetadataMap, date);
 
-				const result = processDate_(ss, date, entriesByDate[date], winnersForDate);
+				const result = processDate_(ss, date, entriesByDate[date], winnersForDate, raceMetadataForDate);
 				summary.processedDates++;
 
 				// Mark entries as extracted immediately after processing this date
@@ -225,6 +225,57 @@ function getWinnersForDate_(winnersMap, dateToken) {
 	});
 
 	return winnersForDate;
+}
+
+/**
+ * Build race metadata map from race metadata data (columns O-R)
+ * @param {Array<Array>} raceMetadataData - Array of [raceId, age, type, purse] rows
+ * @returns {Object} Map of raceId -> {age, type, purse}
+ */
+function buildRaceMetadataMap_(raceMetadataData) {
+	const raceMetadataMap = {};
+
+	for (let i = 0; i < raceMetadataData.length; i++) {
+		const row = raceMetadataData[i];
+		const raceId = row[0]; // Column O: Race ID
+		const age = row[1];    // Column P: Age
+		const type = row[2];    // Column Q: Type
+		const purse = row[3];   // Column R: Purse
+
+		if (raceId && typeof raceId === 'string' && raceId.trim() !== '') {
+			raceMetadataMap[raceId.trim()] = {
+				age: age !== null && age !== undefined && age !== '' ? String(age) : '',
+				type: type !== null && type !== undefined && type !== '' ? String(type) : '',
+				purse: purse !== null && purse !== undefined && purse !== '' ? String(purse) : '',
+			};
+		}
+	}
+
+	return raceMetadataMap;
+}
+
+/**
+ * Get race metadata for a specific date from race metadata map
+ * @param {Object} raceMetadataMap - Map of raceId -> {age, type, purse}
+ * @param {string} dateToken - Date in YYYYMMDD format
+ * @returns {Object} Map of raceNumber -> {age, type, purse} for the date
+ */
+function getRaceMetadataForDate_(raceMetadataMap, dateToken) {
+	const raceMetadataForDate = {};
+
+	// Find all race metadata for races on this date
+	Object.keys(raceMetadataMap).forEach(raceId => {
+		const match = raceId.trim().match(/^[A-Z0-9]+_(\d{8})_(\d+)$/i);
+		if (match && match[1] === dateToken) {
+			const raceNumber = parseInt(match[2], 10);
+			if (raceNumber >= RoiHistoricalConfig.MIN_RACE_NUMBER &&
+				raceNumber <= RoiHistoricalConfig.MAX_RACE_NUMBER) {
+				raceMetadataForDate[raceNumber] = raceMetadataMap[raceId];
+			}
+		}
+	});
+
+	return raceMetadataForDate;
 }
 
 /**
@@ -341,9 +392,10 @@ function markEntriesAsExtracted_(databaseSheet, rowNumbers) {
  * @param {string} dateToken - Date in YYYYMMDD format
  * @param {Array<Object>} entries - Entries for this date
  * @param {Object} winnersForDate - Map of raceNumber -> winnerHorseNumber for this date
+ * @param {Object} raceMetadataForDate - Map of raceNumber -> {age, type, purse} for this date
  * @returns {Object} Processing result
  */
-function processDate_(ss, dateToken, entries, winnersForDate) {
+function processDate_(ss, dateToken, entries, winnersForDate, raceMetadataForDate) {
 	// Parse date token (YYYYMMDD) to Date object
 	const year = parseInt(dateToken.substring(0, 4), 10);
 	const month = parseInt(dateToken.substring(4, 6), 10) - 1; // JS months are 0-indexed
@@ -415,6 +467,33 @@ function processDate_(ss, dateToken, entries, winnersForDate) {
 				console.log(`  ✓ Race ${raceNumber}: ${raceEntries.length} entries (no winner found)`);
 			}
 
+			// Write race metadata (type, age, purse) to columns D, E, F
+			// Race 3: row 2 (D2, E2, F2)
+			// Race 4: row 22 (D22, E22, F22)
+			// Race 5: row 42 (D42, E42, F42)
+			// Formula: row = 2 + (raceNumber - 3) * 20
+			if (raceMetadataForDate && raceMetadataForDate[raceNumber]) {
+				const metadataRow = 2 + (raceNumber - 3) * 20;
+				const metadata = raceMetadataForDate[raceNumber];
+
+				// Only write if not already set (similar to winner logic)
+				const typeCell = targetSheet.getRange(metadataRow, 4); // Column D
+				const ageCell = targetSheet.getRange(metadataRow, 5);  // Column E
+				const purseCell = targetSheet.getRange(metadataRow, 6); // Column F
+
+				if (!typeCell.getValue() || typeCell.getValue() === '') {
+					typeCell.setValue(metadata.type || '');
+				}
+				if (!ageCell.getValue() || ageCell.getValue() === '') {
+					ageCell.setValue(metadata.age || '');
+				}
+				if (!purseCell.getValue() || purseCell.getValue() === '') {
+					purseCell.setValue(metadata.purse || '');
+				}
+
+				console.log(`  ✓ Race ${raceNumber}: Metadata written (type: ${metadata.type || 'N/A'}, age: ${metadata.age || 'N/A'}, purse: ${metadata.purse || 'N/A'})`);
+			}
+
 			racesProcessed++;
 
 		} catch (error) {
@@ -422,14 +501,8 @@ function processDate_(ss, dateToken, entries, winnersForDate) {
 		}
 	}
 
-	// Append totals with dynamic formulas to TOTALS sheet
-	try {
-		appendHistoricalTotalsToSheet_(ss, sheetName);
-		console.log(`  ✓ Appended totals row for ${sheetName} to TOTALS sheet`);
-	} catch (error) {
-		console.error(`  ⚠️ Error appending totals for ${sheetName}:`, error);
-		// Don't fail the entire process if totals append fails
-	}
+	// Note: TOTALS sheet appending is now handled by 07-DailyTotalsSync.js
+	// This ensures sheets are fully populated before formulas are created
 
 	return { racesProcessed, sheetName, isNewSheet };
 }
@@ -573,129 +646,6 @@ function appendRaceEntriesToSheet_(sheet, headerRow, newEntries) {
 		if (rowsToWrite > 0) {
 			sheet.getRange(firstEmptyRow, 1, rowsToWrite, 5).setValues(values.slice(0, rowsToWrite));
 		}
-	}
-}
-
-/**
- * Append totals row with dynamic formulas to TOTALS sheet
- * Creates formulas that reference the date sheet cells (e.g., ='1/1/2025'!BI2)
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss - Active spreadsheet
- * @param {string} sheetName - Name of the date sheet (e.g., "1/1/2025")
- */
-function appendHistoricalTotalsToSheet_(ss, sheetName) {
-	try {
-		// Get TOTALS sheet
-		const totalsSheet = ss.getSheetByName(RoiHistoricalConfig.TOTALS_SHEET_NAME);
-		if (!totalsSheet) {
-			console.log(`⚠️ TOTALS sheet not found, skipping totals append for ${sheetName}`);
-			return;
-		}
-
-		// Find last row based on Column A (DATES) specifically, not the overall sheet
-		// This prevents issues when other columns (like GP) extend beyond the data
-		const startRow = Math.max(RoiHistoricalConfig.TOTALS_START_ROW, 2);
-		const dateColumn = RoiHistoricalConfig.TOTALS_COL_DATE + 1; // Column A (1-based)
-
-		// Get the last row of the sheet first
-		const sheetLastRow = totalsSheet.getLastRow();
-
-		// Find the actual last row with data in column A
-		let lastDataRow = startRow - 1; // Start before the data range
-
-		if (sheetLastRow >= startRow) {
-			// Check column A from startRow to sheetLastRow to find the last row with data
-			const dateColumnRange = totalsSheet.getRange(startRow, dateColumn, sheetLastRow - startRow + 1, 1);
-			const dateValues = dateColumnRange.getValues();
-
-			// Find the last non-empty row in column A
-			for (let i = dateValues.length - 1; i >= 0; i--) {
-				const cellValue = dateValues[i][0];
-				if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
-					lastDataRow = startRow + i;
-					break;
-				}
-			}
-		}
-
-		console.log(`  [DEBUG] Checking for duplicates: sheetLastRow=${sheetLastRow}, lastDataRow=${lastDataRow}, startRow=${startRow}, sheetName="${sheetName}"`);
-
-		// Check for duplicates using the actual data range
-		if (lastDataRow >= startRow) {
-			// Check existing dates in column A
-			const dateRange = totalsSheet.getRange(startRow, dateColumn, lastDataRow - startRow + 1, 1);
-			const existingDates = dateRange.getValues();
-
-			for (let i = 0; i < existingDates.length; i++) {
-				const existingDate = existingDates[i][0];
-				// Compare as strings, handling different types
-				if (existingDate !== null && existingDate !== undefined && existingDate !== '') {
-					const existingDateStr = String(existingDate).trim();
-					const sheetNameStr = String(sheetName).trim();
-					if (existingDateStr === sheetNameStr) {
-						console.log(`⏭️ Date ${sheetName} already exists in TOTALS sheet at row ${startRow + i} (found: "${existingDate}"), skipping`);
-						return;
-					}
-				}
-			}
-		}
-
-		// Find next available row based on actual data in column A
-		const nextRow = Math.max(lastDataRow + 1, RoiHistoricalConfig.TOTALS_START_ROW);
-		console.log(`  [DEBUG] Next row to append: ${nextRow} (based on lastDataRow=${lastDataRow})`);
-
-		// Escape sheet name for formula (wrap in single quotes if it contains special characters)
-		// Sheet names with "/" need to be quoted: '1/1/2025'
-		const escapedSheetName = `'${sheetName}'`;
-
-		// Set Column A with date string (value) - set as plain text to prevent date conversion
-		const dateCell = totalsSheet.getRange(nextRow, RoiHistoricalConfig.TOTALS_COL_DATE + 1);
-		dateCell.setNumberFormat('@'); // Set format to plain text
-		dateCell.setValue(sheetName);
-		console.log(`  [DEBUG] Set date value in cell ${dateCell.getA1Notation()}: "${sheetName}"`);
-
-		// Set Columns B-E with formulas referencing the date sheet cells
-		// Use setFormula for each cell individually to avoid array structure issues
-		const betFormula = `=${escapedSheetName}!${RoiHistoricalConfig.TEE_CELL_BET}`;
-		const collectFormula = `=${escapedSheetName}!${RoiHistoricalConfig.TEE_CELL_COLLECT}`;
-		const betsFormula = `=${escapedSheetName}!${RoiHistoricalConfig.TEE_CELL_BETS}`;
-		const winsFormula = `=${escapedSheetName}!${RoiHistoricalConfig.TEE_CELL_WINS}`;
-
-		const betCell = totalsSheet.getRange(nextRow, RoiHistoricalConfig.TOTALS_COL_BET + 1);
-		betCell.setFormula(betFormula);
-		console.log(`  [DEBUG] Set BET formula in cell ${betCell.getA1Notation()}: ${betFormula}`);
-
-		const collectCell = totalsSheet.getRange(nextRow, RoiHistoricalConfig.TOTALS_COL_COLLECT + 1);
-		collectCell.setFormula(collectFormula);
-		console.log(`  [DEBUG] Set COLLECT formula in cell ${collectCell.getA1Notation()}: ${collectFormula}`);
-
-		const betsCell = totalsSheet.getRange(nextRow, RoiHistoricalConfig.TOTALS_COL_BETS + 1);
-		betsCell.setFormula(betsFormula);
-		console.log(`  [DEBUG] Set BETS formula in cell ${betsCell.getA1Notation()}: ${betsFormula}`);
-
-		const winsCell = totalsSheet.getRange(nextRow, RoiHistoricalConfig.TOTALS_COL_WINS + 1);
-		winsCell.setFormula(winsFormula);
-		console.log(`  [DEBUG] Set WINS formula in cell ${winsCell.getA1Notation()}: ${winsFormula}`);
-
-		// Force flush to ensure writes are committed
-		SpreadsheetApp.flush();
-
-		// Verify the row was actually written
-		const verifyDate = dateCell.getDisplayValue(); // Use getDisplayValue to get the string representation
-		const verifyBet = betCell.getFormula();
-		console.log(`  [DEBUG] Verification - Date cell display value: "${verifyDate}", BET formula: "${verifyBet}"`);
-
-		if (verifyDate !== sheetName) {
-			console.warn(`  [WARN] Date display value mismatch. Expected "${sheetName}", got "${verifyDate}"`);
-		}
-		if (!verifyBet || !verifyBet.startsWith('=')) {
-			throw new Error(`Failed to write BET formula. Expected formula starting with "=", got "${verifyBet}"`);
-		}
-
-		console.log(`  ✓ Appended totals row for ${sheetName} at row ${nextRow} with dynamic formulas`);
-	} catch (error) {
-		console.error(`❌ Error appending totals for ${sheetName}:`, error);
-		console.error(`❌ Error stack:`, error.stack);
-		throw error;
 	}
 }
 

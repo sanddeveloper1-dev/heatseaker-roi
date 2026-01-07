@@ -14,6 +14,8 @@
     "https://dfu.xb-online.com/wagerupload/betupload.aspx",
     "https://www.heatseakerbet.com/api/submit-bets",
     "https://www.heatseakerbet.com/api/races/daily",
+    "https://www.heatseakerbet.com/api/races/entries/daily",
+    "https://www.heatseakerbet.com/api/races/winners/daily",
     "https://slack.com/api/files.getUploadURLExternal",
     "https://files.slack.com/upload/v1",
     "https://slack.com/api/files.completeUploadExternal",

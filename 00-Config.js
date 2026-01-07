@@ -38,14 +38,42 @@ const Config = {
 		TIMEZONE: 'America/New_York',
 		MIN_RACE_NUMBER: 3,
 		DATABASE_TRACK_CODE_CELL: 'J1',
-		TOTALS_START_ROW: 11,
-		TEE_TOTAL_RANGES: {
-			WIN_BET: 'BI2',
-			WIN_COLLECT: 'BJ2',
-			GP: 'BM2',
-			ROI: 'BN2',
-		},
 		DATABASE_COLUMNS: 6,
+
+		// TOTALS Sheet Configuration
+		// Used in: 04-DatabaseSync.js, 06-ROITotals.js, 07-DailyTotalsSync.js
+		TOTALS_START_ROW: 11,
+		TOTALS_COLUMNS: {
+			DATE: 0,       // Column A (0-based): DATES
+			BET: 1,        // Column B: BET
+			COLLECT: 2,    // Column C: COLLECT
+			BETS: 3,       // Column D: BETS
+			WINS: 4,       // Column E: WINS
+		},
+
+		// TEE Sheet Cell References for Totals
+		// Used in: 04-DatabaseSync.js, 06-ROITotals.js, 07-DailyTotalsSync.js
+		TEE_CELLS: {
+			BET: 'BI2',         // BET total (also WIN_BET in some contexts)
+			COLLECT: 'BO1',     // COLLECT total (also WIN_COLLECT in some contexts)
+			BETS: 'BM2',        // BETS count (also GP in some contexts)
+			WINS: 'BN2',        // WINS count (also ROI in some contexts)
+			PROCESSED: 'BR1',   // Processed flag (TRUE/FALSE) - used in 06-ROITotals.js
+		},
+
+		// Legacy aliases for backwards compatibility
+		// These map to TEE_CELLS above
+		TEE_TOTAL_RANGES: {
+			WIN_BET: 'BI2',      // Maps to TEE_CELLS.BET
+			WIN_COLLECT: 'BO1',  // Maps to TEE_CELLS.COLLECT
+			GP: 'BM2',           // Maps to TEE_CELLS.BETS
+			ROI: 'BN2',          // Maps to TEE_CELLS.WINS
+		},
+
+		// TEE Formula Sync Configuration
+		// Used in: 08-TeeFormulaSync.js
+		// Cell to track formula sync progress (set to timestamp when sync starts, cleared when complete)
+		TEE_FORMULA_SYNC_PROGRESS_CELL: 'BS1', // Progress tracking cell
 	},
 
 	// --- Ratio Template Tab Layout (Manual Bet (Ratio).js) ---
