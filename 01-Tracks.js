@@ -53,6 +53,15 @@ const tracks = [
     winBet: 10,
   },
   {
+    trackName: 'FAIR GROUNDS',
+    id: '1PdsGn0BQn9Zt3iMqsRYd_7vE-ezSuYLG4yQfAiNQQcE',
+    trackCode: 'FG',
+    betTrackCode: 'FGD',
+    scriptId: '1tKIF6eirG2xndGzQGF8U6p6GeOEkbZIJJdYO_TrLtW4qnccLRinX1xNj',
+    pickThreeValue: 2,
+    winBet: 730,
+  },
+  {
     trackName: 'GULFSTREAM',
     id: '1G2hJDgyOBhZKj1G-9lzdfM7g-tv_15bJCsxZ8tD2s6o',
     trackCode: 'GP',
@@ -109,6 +118,15 @@ const tracks = [
     scriptId: '1mns3p1LmP5T0QJm-5S_ra5uGJf3sFTgWbB38dv2s2ws4oGKcpcCAFTpd',
     pickThreeValue: .5,
     winBet: 10,
+  },
+  {
+    trackName: 'TAMPA BAY',
+    id: '1n13ru7JXpGkyIyKtU6f6f7xkVhzfmV_2Er39E03FMLo',
+    trackCode: 'TAM',
+    betTrackCode: 'TAM',
+    scriptId: '1yg6ZfhrPDKCT-EhIR_oFO9P9BCrv5qnBKCpc_9eJtk8er0mgsDkYY0qc',
+    pickThreeValue: 2,
+    winBet: 600,
   },
   {
     trackName: 'WOODBINE',
