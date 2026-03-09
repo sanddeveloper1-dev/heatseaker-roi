@@ -41,11 +41,21 @@ const DbRetrievalConfig = Object.freeze({
   },
 });
 
+const DISABLE_RUN_DAILY_TRACKING_SYNC = true;
+
 /**
  * Main entry point that performs Tasks 2, 3, and 4 in order.
  * @returns {Promise<Object>} Summary of each step.
  */
 async function runDailyTrackingSync() {
+  if (DISABLE_RUN_DAILY_TRACKING_SYNC) {
+    console.log('runDailyTrackingSync temporarily disabled (trigger fired).');
+    return {
+      success: false,
+      disabled: true,
+    };
+  }
+
   console.log('=== Starting Daily Database Sync ===');
   const databaseResult = await syncDatabaseSheet();
   const teeResult = await populateTeeSheetFromDatabase();

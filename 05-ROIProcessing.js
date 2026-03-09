@@ -51,6 +51,8 @@ const RoiHistoricalConfig = {
 	MAX_EXECUTION_TIME_MS: 5.5 * 60 * 1000, // 5.5 minutes (leave buffer before 6 min limit)
 };
 
+const DISABLE_PROCESS_ROI_HISTORICAL = true;
+
 /**
  * Main entry point - processes all DATABASE entries
  * Skips entries where Column G (Extracted) is TRUE
@@ -58,6 +60,11 @@ const RoiHistoricalConfig = {
  * @returns {Object} Summary of processing
  */
 function processRoiHistorical() {
+	if (DISABLE_PROCESS_ROI_HISTORICAL) {
+		console.log('processRoiHistorical temporarily disabled (trigger fired).');
+		return { success: false, disabled: true };
+	}
+
 	const startTime = Date.now();
 	console.log('🚀 Starting ROI Historical processing...');
 

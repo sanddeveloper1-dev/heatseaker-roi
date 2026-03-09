@@ -43,11 +43,18 @@ const DailyTotalsConfig = {
 	TOTALS_COL_WINS: Config?.DB_TRACKING?.TOTALS_COLUMNS?.WINS ?? 4,       // Column E: WINS
 };
 
+const DISABLE_SYNC_DAILY_TOTALS = true;
+
 /**
  * Main entry point - syncs missing dates from date-named sheets to TOTALS
  * @returns {Object} Summary of processing
  */
 function syncDailyTotals() {
+	if (DISABLE_SYNC_DAILY_TOTALS) {
+		console.log('syncDailyTotals temporarily disabled (trigger fired).');
+		return { success: false, disabled: true };
+	}
+
 	console.log('🚀 Starting Daily Totals Sync...');
 
 	try {
